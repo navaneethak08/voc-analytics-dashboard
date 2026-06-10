@@ -138,37 +138,170 @@ def format_number(n, decimals=1):
 
 
 # Sidebar
+# Documentation Page
+def render_documentation():
+    st.markdown("## :material/menu_book: Data Documentation")
+    st.caption("Everything behind the VOC Analytics dashboard - data lineage, schema, and the decisions that shaped it.")
+
+    st.info("This dashboard transforms 5,000 raw e-commerce product reviews into a structured Voice-of-Customer analytics model in Snowflake.", icon=":material/lightbulb:")
+
+    doc_tab1, doc_tab2, doc_tab3, doc_tab4 = st.tabs([
+        ":material/source: Raw Data",
+        ":material/schema: Data Model",
+        ":material/visibility: Analytics Views",
+        ":material/insights: Key Decisions",
+    ])
+
+    with doc_tab1:
+        st.markdown("### Source Dataset")
+        st.markdown("""
+        The pipeline starts from a single CSV of customer product reviews.
+
+        | Property | Value |
+        |---|---|
+        | **File** | `ecommerce-product-reviews.csv` |
+        | **Rows** | 5,000 reviews |
+        | **Original columns** | `review` (free text), `label` (sentiment) |
+        | **Sentiment classes** | positive, neutral, negative |
+        """)
+        st.markdown("#### What the raw data did *not* have")
+        st.markdown("""
+        The CSV had **only review text and a sentiment label**. It contained no dates,
+        star ratings, product categories, or customer IDs. To support VOC analytics
+        (NPS, CSAT, trends), these dimensions were **synthetically engineered** in a
+        transparent, rule-based way (see *Key Decisions*).
+        """)
+        st.markdown("#### Load path")
+        st.markdown("""
+        `CSV` -> internal stage (`REVIEWS_STAGE`) -> `COPY INTO STG_REVIEWS`
+        -> enriched into `FACT_REVIEWS` -> aggregated into analytics views.
+        """)
+
+    with doc_tab2:
+        st.markdown("### Tables")
+        st.markdown("**`STG_REVIEWS`** - raw staging table (1:1 with the CSV)")
+        st.dataframe(pd.DataFrame({
+            "Column": ["REVIEW_TEXT", "SENTIMENT_LABEL"],
+            "Type": ["VARCHAR", "VARCHAR(20)"],
+            "Description": ["Full review text", "positive / neutral / negative"],
+        }), hide_index=True, use_container_width=True)
+
+        st.markdown("**`FACT_REVIEWS`** - enriched fact table (one row per review)")
+        st.dataframe(pd.DataFrame({
+            "Column": ["REVIEW_ID", "REVIEW_TEXT", "SENTIMENT_LABEL", "SENTIMENT_SCORE",
+                       "STAR_RATING", "PRODUCT_CATEGORY", "REVIEW_DATE", "NPS_SEGMENT", "IS_SATISFIED"],
+            "Type": ["NUMBER", "VARCHAR", "VARCHAR", "NUMBER", "NUMBER", "VARCHAR", "DATE", "VARCHAR", "NUMBER"],
+            "Description": [
+                "Surrogate key", "Full review text", "Original sentiment label",
+                "Numeric sentiment (+1/0/-1)", "Derived 1-5 rating", "Assigned category (8 groups)",
+                "Synthetic date (last 12 months)", "Promoter / Passive / Detractor", "1 if rating >= 4 else 0",
+            ],
+        }), hide_index=True, use_container_width=True)
+
+        st.markdown("**Dimension tables**")
+        st.markdown("""
+        - **`DIM_PRODUCT_CATEGORY`** - 8 categories with pre-computed avg rating & CSAT
+        - **`DIM_DATE`** - calendar dimension (year, quarter, month, week, day attributes)
+        """)
+
+    with doc_tab3:
+        st.markdown("### Analytics Views")
+        st.markdown("These power the dashboard tabs and keep heavy aggregation in Snowflake.")
+        st.dataframe(pd.DataFrame({
+            "View": ["VW_KPI_SUMMARY", "VW_NPS_SUMMARY", "VW_CSAT_BY_CATEGORY", "VW_SENTIMENT_TREND"],
+            "Purpose": [
+                "Top-level KPIs: total reviews, avg rating, CSAT %, NPS score",
+                "Promoter / Passive / Detractor counts, %, and NPS score",
+                "CSAT, avg rating, and sentiment breakdown per category",
+                "Monthly sentiment counts, avg rating, and CSAT over time",
+            ],
+            "Feeds": [
+                "KPI hero row", "Overview tab", "Categories tab", "Trends tab",
+            ],
+        }), hide_index=True, use_container_width=True)
+
+    with doc_tab4:
+        st.markdown("### Key Data Analysis Decisions")
+        st.markdown("""
+        **1. Star rating derived from sentiment**
+        Since the raw data had no ratings, they were mapped from sentiment:
+        positive -> 4-5 stars, neutral -> 3 stars, negative -> 1-2 stars.
+        This keeps ratings consistent with the labelled sentiment.
+
+        **2. NPS segmentation**
+        Standard NPS bands applied to the derived rating:
+        - **Promoter** = 4-5 stars
+        - **Passive** = 3 stars
+        - **Detractor** = 1-2 stars
+
+        `NPS Score = % Promoters - % Detractors`
+
+        **3. CSAT definition**
+        A review counts as *satisfied* when its rating is **4 or 5**.
+        `CSAT = satisfied reviews / total reviews x 100`.
+
+        **4. Product categories**
+        Each review is deterministically assigned to one of 8 e-commerce categories
+        using a hash of its text - stable across reruns, evenly distributed.
+
+        **5. Synthetic dates**
+        Reviews are spread across the last 12 months to enable time-series trends
+        (weekly/monthly sentiment, rating, NPS, and CSAT).
+
+        **6. Decimal handling**
+        Snowflake returns numeric columns as `Decimal`; the app casts them to float
+        on load so pandas/Altair math and charts work correctly.
+        """)
+
+    st.divider()
+    st.caption("VOC Analytics | Data documentation auto-generated from the Snowflake data model.")
+
+
+# Sidebar
 with st.sidebar:
     st.markdown("# :material/analytics: VOC Analytics")
     st.caption("Voice of Customer Intelligence")
     st.divider()
 
-    st.markdown("#### :material/filter_alt: Filters")
+    page = st.radio(
+        "Navigate",
+        ["Dashboard", "About the Data"],
+        key="nav_page",
+        label_visibility="collapsed",
+    )
+    st.divider()
 
     reviews_df = load_fact_reviews()
 
-    categories = ["All"] + sorted(reviews_df["product_category"].unique().tolist())
-    selected_category = st.selectbox(
-        "Product Category",
-        categories,
-        index=0,
-        key="filter_category",
-    )
+    if page == "Dashboard":
+        st.markdown("#### :material/filter_alt: Filters")
 
-    sentiments = ["All", "positive", "neutral", "negative"]
-    selected_sentiment = st.selectbox(
-        "Sentiment",
-        sentiments,
-        index=0,
-        key="filter_sentiment",
-    )
+        categories = ["All"] + sorted(reviews_df["product_category"].unique().tolist())
+        selected_category = st.selectbox(
+            "Product Category",
+            categories,
+            index=0,
+            key="filter_category",
+        )
 
-    time_range = st.segmented_control(
-        "Time Range",
-        TIME_RANGES,
-        default="All",
-        key="filter_time",
-    )
+        sentiments = ["All", "positive", "neutral", "negative"]
+        selected_sentiment = st.selectbox(
+            "Sentiment",
+            sentiments,
+            index=0,
+            key="filter_sentiment",
+        )
+
+        time_range = st.segmented_control(
+            "Time Range",
+            TIME_RANGES,
+            default="All",
+            key="filter_time",
+        )
+    else:
+        selected_category = "All"
+        selected_sentiment = "All"
+        time_range = "All"
 
     st.divider()
     st.markdown("#### :material/info: About")
@@ -179,6 +312,11 @@ with st.sidebar:
 
     st.divider()
     st.caption("Built with Streamlit + Snowflake")
+
+# Render documentation page and stop if selected
+if page == "About the Data":
+    render_documentation()
+    st.stop()
 
 # Apply Global Filters
 filtered_df = reviews_df.copy()
