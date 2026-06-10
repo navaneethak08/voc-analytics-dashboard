@@ -254,7 +254,7 @@ def render_documentation():
         """)
 
     st.divider()
-    st.caption("VOC Analytics | Data documentation auto-generated from the Snowflake data model.")
+    st.caption("VOC Analytics | Data documentation for the Snowflake data model.")
 
 
 # Sidebar
