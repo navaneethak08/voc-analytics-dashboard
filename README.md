@@ -2,7 +2,7 @@
 
 An interactive **Voice of Customer (VOC)** analytics dashboard built with [Streamlit](https://streamlit.io/) and powered by [Snowflake](https://www.snowflake.com/). It transforms raw e-commerce product reviews into clear, decision-ready insights covering customer satisfaction, sentiment, and category-level performance.
 
-🔗 **Live app:** _add your Streamlit Community Cloud URL here_
+🔗 **Live app:** (https://voc-analytics-dashboard-hbmcbsfzt95en2qe8uu9as.streamlit.app/)
 
 ---
 
