@@ -53,6 +53,13 @@ st.markdown("""
     button[data-baseweb="tab"] {
         font-weight: 500;
     }
+    /* Pointer cursor on interactive elements */
+    .stRadio label, .stCheckbox label,
+    [data-baseweb="tab"],
+    [data-baseweb="select"] *,
+    .stButton button,
+    .stSelectbox div[data-baseweb="select"],
+    .stDownloadButton button { cursor: pointer !important; }
 </style>
 """, unsafe_allow_html=True)
 
